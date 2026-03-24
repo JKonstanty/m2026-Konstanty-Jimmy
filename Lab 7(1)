@@ -1,0 +1,76 @@
+/*
+ * Lab 7.c
+ *
+ * Created: 3/6/2026 12:14:30 AM
+ * Author : jjkon
+ */ 
+
+#include <avr/io.h>
+
+
+int main(void)
+{
+	/* Replace with your application code */
+	//Lab 6 Potentiometer Analog to Digital
+	//Set PC0-4 to output
+	DDRC = 0b00011111; // Pins PC0 - PC4 are outputs, PC5 is input
+	PORTC = 0b00011111; //Turns off LEDS PC0-PC4
+	DDRD = 0b01000000; //Make PD6 Output bits - these are PWM
+	DDRB = 0b00000011; //Make Forward / backward direction Pin 0 is forward, Pin 1 is back
+	PORTB = 0b00000001; //Set forward direction (PB0)
+	
+	
+	OCR0A = 0x00; //Make OCR0 to set initial duty cycle to 0 (motor off)
+	TCCR0A = 0b10000011; //Setting non-inverting mode on OC0A pin
+	TCCR0B = 0b00000011; //Set base PWM frequency ~approx 1kHz base freq~
+	
+	PRR = 0x00; //Disabling PRADC to allow A/D conversion
+	ADCSRA = 0b10000111;
+	ADMUX = 0b01100101;
+
+	while (1)
+	{
+		ADCSRA = ADCSRA | 0b01000000;
+		while ((ADCSRA & 0b00010000) == 0);
+		int POT = ADCH;
+		//only reading ADCH so 255/5 = 51
+		
+		//Read analog input
+		if (POT < 51)
+		{
+			//Low Volt = Fast Back
+			PORTC = 0b00011110; //PC0 ON
+			PORTB = 0b00000010; //BACK
+			OCR0A = 127-(POT*63/51); //Sets OCR0A to 127 (50% of 255) if POT = 0
+		}
+		else if (POT >= 51 && POT < 102)
+		{
+			//Intermediate Low Volt = Slow Back
+			PORTC = 0b00011101; //PC1 ON
+			PORTB = 0b00000010;
+			OCR0A = 64-((POT-51)*64/51); //Same as above but for 25-0%
+		}
+		else if (POT >= 102 && POT < 153)
+		{
+			//Medium Volt = Stopped
+			PORTC = 0b00011011; //PC2 ON
+			PORTB = 0b00000000;
+			OCR0A = 0;
+
+		}
+		else if (POT >= 153 && POT < 204)
+		{
+			//Intermediate High Volt = Slow Forward
+			PORTC = 0b00010111; //PC3 ON
+			PORTB = 0b00000001; //Forward
+			OCR0A = ((POT-153)*64/51);
+		}
+		else
+		{
+			//High Volt = Fast Forward
+			PORTC = 0b00001111; //PC4 ON
+			PORTB = 0b00000001; //Forward
+			OCR0A = 64+((POT-204)*63/51); //Sets OCR0A to 127 (50% of 255) 
+		}
+	}
+}
