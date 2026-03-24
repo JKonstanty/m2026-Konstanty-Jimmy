@@ -1,0 +1,61 @@
+/*
+ * Lab 6.c
+ *
+ * Created: 2/25/2026 1:00:11 PM
+ * Author : jjkon
+ */ 
+
+#include <avr/io.h>
+
+
+int main(void)
+{
+    /* Replace with your application code */
+	//Lab 6 Potentiometer Analog to Digital
+	//Set PC0-4 to output
+	DDRC = 0b00011111; // Pins PC0 - PC4 are outputs, PC5 is input
+	PORTC = 0b00011111; //Turns off LEDS PC0-PC4
+	
+	//Set PC5 as input
+	PRR = 0x00; //Disabling PRADC to allow A/D conversion
+	
+	ADCSRA = 0b10000111;
+	ADMUX = 0b01100101;
+	
+	
+    while (1) 
+    {
+		ADCSRA = ADCSRA | 0b01000000;
+		while ((ADCSRA & 0b00010000) ==0);
+		
+		int POT = ADCH;
+		//only reading ADCH so 255/5 = 51
+		
+		//Read analog input
+		if (POT < 51)
+		{
+			//Low Volt = Fast Back
+			PORTC = 0b00011110; //PC0 ON
+		}
+		else if (POT >= 51 && POT < 102)
+		{
+			//Intermediate Low Volt = Slow Back
+			PORTC = 0b00011101; //PC1 ON
+		}
+		else if (POT >= 102 && POT < 153)
+		{
+			//Medium Volt = Stopped
+			PORTC = 0b00011011; //PC2 ON
+		}
+		else if (POT >= 153 && POT < 204)
+		{
+			//Intermediate High Volt = Slow Forward
+			PORTC = 0b00010111; //PC3 ON
+		}
+		else
+		{
+			//High Volt = Fast Forward
+			PORTC = 0b00001111; //PC4 ON	
+		}
+}
+}
