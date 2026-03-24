@@ -1,0 +1,176 @@
+/*
+ * Lab 5.c
+ *
+ * Created: 2/19/2026 12:44:38 PM
+ * Author : jjkon
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+#define FREQ_CLK 1000000 //clock freq
+
+
+//*Variable*//
+
+void wait(volatile int);
+void LEDstate(char new_state);
+volatile int state = 0;
+
+int numberofstates = 6;
+char pattern[] = {'A','B','C','D','E','F'}; //This will be the order of turning on LEDs where A = LED '0' and B = LED '1' and so on
+	
+	
+int main(void) 
+{
+	DDRD = 0b00000000; //Pins are inputs
+	PORTD = 0b00001100; // Sets Pins PD2 and PD3 
+	DDRC = 0b00111111; // Pins PC0 - PC5 are outputs
+	PORTC = 0b00111111; //Turns off LEDS PC0-PC5
+	DDRB = 0b00000011; // Pins PB0 and PB1 are outputs
+	PORTB = 0b00000011; //Outputs PB0 and PB1 are off
+	
+	
+	//Set Up Interrupts
+	EICRA = 0b00001010; //Sets Trigger INT1 and INT0 to both be falling edges
+	EIMSK = 0b00000011; //Enable INT0 and INT1
+	sei(); //Enables Global Interrupt
+	
+	//States: State 0 - LEDS go through all 6; State 1 - LEDS go from 3-5
+	
+	
+	while(1)
+	{
+		if (state == 0)
+		{
+			for (int i=0; i<numberofstates; i++) //Repeatedly display LED pattern and "scroll through states"
+			{
+				LEDstate(pattern[i]); //pass the current pattern state to the function to change to new state
+				if (state != 0) 
+				break;
+			}
+		}
+		else if (state == 1)
+		{
+			PORTB = 0b00000001;
+			for (int i=3; i<numberofstates; i++)
+			{
+				LEDstate(pattern[i]);
+				if (state !=1)
+				break;
+			}	
+		}
+		else if (state == 2)
+		{
+			PORTC = 0b00111111; //TURN EM OFF (LEDS 0-5)
+			PORTB = 0b0000000; //Turn on LED 7 and 6
+		
+			wait(3000);
+			
+			PORTB = 0b00000011; //Turn off LEDS 6 and 7
+			state = 0;
+		}
+	}
+	
+	return 0;
+}
+
+void LEDstate(char new_state)
+{
+	//Changes LED states to new state defined by passed argument
+	switch (new_state)
+	{
+		case 'A':
+		PORTC = 0b00111110;
+		wait(400);
+		break;
+		case 'B':
+		PORTC = 0b00111101;
+		wait(400);
+		break;
+		case 'C':
+		PORTC = 0b00111011;
+		wait(400);
+		break;
+		case 'D':
+		PORTC = 0b00110111;
+		wait(400);
+		break;
+		case 'E':
+		PORTC = 0b00101111;
+		wait(400);
+		break;
+		case 'F':
+		PORTC = 0b00011111;
+		wait(400);
+		break;
+	}//end switch
+} //end change LED state
+
+
+ISR(INT0_vect)
+{
+	//Code for ISR INT0
+	//If Switch '0' is pressed while LED2 (PC2) will turn LED 6 on and change LED pattern to LED 3->4->5 (Repeat)
+	wait(50);
+	
+	if(!(PIND & 0b00000100))
+	{
+		if (state == 0 && !(PORTC & 0b00000100))
+		{
+			state = 1;
+		}
+	
+	wait(50);
+	EIFR = 0b00000001; //Clear INT0 Flag
+	}
+}
+
+ISR(INT1_vect)	
+{
+	//Code for ISR INT1
+	//If Switch '1' is pressed while LED 5 (PC5) is on, turn LED 7 on and hold for 3 seconds
+	wait(50);
+	
+	if(!(PIND & 0b00001000))
+	{
+		if (state == 1 && !(PORTC & 0b00100000))
+		{
+			state = 2;
+		}
+	}
+	wait(50);
+	EIFR = 0b00000010; //Clear INT1 Flag
+}
+
+void wait(volatile int number_of_msec) {
+	// This subroutine uses the Timer1 registers to create a delay equal to number_of_msec*T, where T is 1 msec
+	// It changes depending on the frequency defined by FREQ_CLK
+	char register_B_setting;
+	char count_limit;
+	
+	// Some typical clock frequencies:
+	switch(FREQ_CLK) {
+		case 16000000:
+		register_B_setting = 0b00000011; // this will start the timer in Normal mode with prescaler of 64 (CS02 = 0, CS01 = CS00 = 1).
+		count_limit = 250; // For prescaler of 64, a count of 250 will require 1 msec
+		break;
+		case 8000000:
+		register_B_setting =  0b00000011; // this will start the timer in Normal mode with prescaler of 64 (CS02 = 0, CS01 = CS00 = 1).
+		count_limit = 125; // for prescaler of 64, a count of 125 will require 1 msec
+		break;
+		case 1000000:
+		register_B_setting = 0b00000010; // this will start the timer in Normal mode with prescaler of 8 (CS02 = 0, CS01 = 1, CS00 = 0).
+		count_limit = 125; // for prescaler of 8, a count of 125 will require 1 msec
+		break;
+	}
+	
+	while (number_of_msec > 0) {
+		TCCR1A = 0x00; // clears WGM00 and WGM01 (bits 0 and 1) to ensure Timer/Counter is in normal mode.
+		TCNT1 = 0;  // preload value for testing on count = 250
+		TCCR1B =  register_B_setting;  // Start TIMER0 with the settings defined above
+		while (TCNT1 < count_limit); // exits when count = the required limit for a 1 msec delay
+		TCCR1B = 0x00; // Stop TIMER0
+		number_of_msec--;
+	}
+} // end wait()
